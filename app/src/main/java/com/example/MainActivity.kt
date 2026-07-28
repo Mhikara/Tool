@@ -138,7 +138,15 @@ fun AppNavigation() {
             )
         }
         composable("qr_maker") {
-            QrMakerScreen(onBack = { navController.popBackStack() })
+            QrMakerScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToScanner = { navController.navigate("qr_scanner") }
+            )
+        }
+        composable("qr_scanner") {
+            com.example.ui.maker.qrmaker.QrScannerScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
         composable("text_maker") {
             TextMakerScreen(onBack = { navController.popBackStack() })

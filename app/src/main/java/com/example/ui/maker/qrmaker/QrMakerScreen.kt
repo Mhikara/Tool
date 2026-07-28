@@ -46,6 +46,7 @@ import com.example.data.local.QrHistoryEntity
 @Composable
 fun QrMakerScreen(
     onBack: () -> Unit,
+    onNavigateToScanner: () -> Unit = {},
     viewModel: QrMakerViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -80,6 +81,9 @@ fun QrMakerScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToScanner) {
+                        Icon(Icons.Outlined.QrCodeScanner, contentDescription = "Scan QR")
+                    }
                     IconButton(onClick = { viewModel.checkClipboard(context) }) {
                         Icon(Icons.Outlined.ContentPaste, contentDescription = "Cek Clipboard")
                     }

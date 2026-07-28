@@ -25,11 +25,28 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release") }
+      val keystorePath = System.getenv("KEYSTORE_PATH")
+      val storePass = System.getenv("STORE_PASSWORD")
+      val alias = System.getenv("KEY_ALIAS")
+      val keyPass = System.getenv("KEY_PASSWORD")
+
+      if (keystorePath != null && storePass != null && alias != null && keyPass != null) {
+          storeFile = file(keystorePath)
+          storePassword = storePass
+          keyAlias = alias
+          keyPassword = keyPass
+      } else if (isReleaseBuild) {
+          throw GradleException("Berdasarkan konfigurasi keamanan Play Protect, " +
+                  "semua variable (KEYSTORE_PATH, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD) " +
+                  "wajib di-set untuk build release!")
+      } else {
+          // Fallback lokal sementara jika bukan build release
+          storeFile = file("${rootDir}/my-upload-key.jks")
+          storePassword = "android"
+          keyAlias = "upload"
+          keyPassword = "android"
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -73,12 +90,12 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
-  // implementation(libs.accompanist.permissions)
+  implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
-  // implementation(libs.androidx.camera.camera2)
-  // implementation(libs.androidx.camera.core)
-  // implementation(libs.androidx.camera.lifecycle)
-  // implementation(libs.androidx.camera.view)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.core)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)
@@ -114,6 +131,7 @@ dependencies {
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
+  implementation(libs.play.integrity)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
