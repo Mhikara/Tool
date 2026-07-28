@@ -1,18 +1,28 @@
 package com.example.util
 
 import android.content.Context
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import retrofit2.http.GET
+import retrofit2.http.Url
 import java.io.File
-import java.net.URL
 import java.security.MessageDigest
 
 // Model Data untuk Manifest
+@JsonClass(generateAdapter = true)
 data class SyncManifest(
     val version: Int,
     val files: List<ManifestFileItem>
 )
 
+@JsonClass(generateAdapter = true)
 data class ManifestFileItem(
     val path: String,       // path lokal relatif, misal: "config/settings.json"
     val hash: String,       // SHA-256 hash dari isi file
@@ -25,16 +35,16 @@ data class SyncResult(
     val failed: List<String> = emptyList()
 )
 
-interface RemoteDataSyncManager {
-    /**
-     * Memeriksa pembaruan dengan membandingkan manifest lokal dan remote.
-     * Mengembalikan list file yang perlu diunduh (baru/berubah) dan list file yang perlu dihapus.
-     */
-    suspend fun checkForUpdates(): Pair<List<ManifestFileItem>, List<String>> // Pair<ToDownload, ToDelete>
+interface GitHubRawApi {
+    @GET
+    suspend fun getManifest(@Url url: String): SyncManifest
 
-    /**
-     * Mengeksekusi proses sinkronisasi: download file baru, hapus file lama.
-     */
+    @GET
+    suspend fun downloadFile(@Url url: String): ResponseBody
+}
+
+interface RemoteDataSyncManager {
+    suspend fun checkForUpdates(): Pair<List<ManifestFileItem>, List<String>>
     suspend fun syncData(): SyncResult
 }
 
@@ -46,18 +56,30 @@ class RemoteDataSyncManagerImpl(
     private val localDataDir = File(context.filesDir, "remote_data").apply { mkdirs() }
     private val localManifestFile = File(localDataDir, "manifest.json")
 
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
+
+    private val manifestAdapter = moshi.adapter(SyncManifest::class.java)
+
+    private val retrofit = Retrofit.Builder()
+        .baseUrl("https://raw.githubusercontent.com/") // Base URL is required by Retrofit, actual URL passed via @Url
+        .client(OkHttpClient.Builder().build())
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+
+    private val api = retrofit.create(GitHubRawApi::class.java)
+
     override suspend fun checkForUpdates(): Pair<List<ManifestFileItem>, List<String>> = withContext(Dispatchers.IO) {
         try {
             // 1. Ambil manifest remote
-            // (Dalam produksi, gunakan Retrofit/OkHttp, di sini pakai URL.readText() untuk simplisitas)
-            val remoteManifestJson = URL(manifestUrl).readText()
-            val remoteManifest = parseManifest(remoteManifestJson) // Implementasi parser (Moshi/Gson)
+            val remoteManifest = api.getManifest(manifestUrl)
 
             // 2. Baca manifest lokal (jika ada)
             val localManifest = if (localManifestFile.exists()) {
-                parseManifest(localManifestFile.readText())
+                manifestAdapter.fromJson(localManifestFile.readText()) ?: SyncManifest(0, emptyList())
             } else {
-                SyncManifest(version = 0, files = emptyList())
+                SyncManifest(0, emptyList())
             }
 
             // 3. Bandingkan
@@ -110,7 +132,8 @@ class RemoteDataSyncManagerImpl(
         // Download file baru/update
         for (item in toDownload) {
             try {
-                val fileContent = URL(item.downloadUrl).readBytes()
+                val response = api.downloadFile(item.downloadUrl)
+                val fileContent = response.bytes()
                 
                 // Validasi Hash sebelum menyimpan
                 val downloadedHash = calculateHash(fileContent)
@@ -130,8 +153,9 @@ class RemoteDataSyncManagerImpl(
         // Jika ada perubahan sukses, update manifest lokal
         if (downloaded.isNotEmpty() || deleted.isNotEmpty()) {
             try {
-                val remoteManifestJson = URL(manifestUrl).readText() // Ambil ulang atau pass dari fungsi sebelumnya
-                localManifestFile.writeText(remoteManifestJson)
+                // Fetch the latest manifest again to save it locally
+                val latestManifest = api.getManifest(manifestUrl)
+                localManifestFile.writeText(manifestAdapter.toJson(latestManifest))
             } catch (e: Exception) {
                 // Handle error
             }
@@ -141,12 +165,6 @@ class RemoteDataSyncManagerImpl(
     }
 
     // --- Helper Functions ---
-    private fun parseManifest(json: String): SyncManifest {
-        // TODO: Gunakan library Moshi/Gson untuk parsing JSON
-        // Ini hanya mock-up agar kode bisa dicompile
-        return SyncManifest(0, emptyList()) 
-    }
-
     private fun calculateHash(bytes: ByteArray): String {
         val md = MessageDigest.getInstance("SHA-256")
         val digest = md.digest(bytes)
