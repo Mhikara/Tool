@@ -1,0 +1,1 @@
+sed -i 's/Triple("24 Jul 2026", "Rp50.000", "Berhasil")/Triple("24 Jul 2026", "Rp50.000", "Berhasil")\n        val mockNote = "Beli kopi semangat!"/' ./app/src/main/java/com/example/ui/donation/DonationScreen.kt
