@@ -1,28 +1,24 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
+set -e
 
-# ==========================================
-# Script Rollback Otomatis (Termux)
-# ==========================================
+PROJECT_DIR="$HOME/Tool"
+BACKUP_ROOT="$HOME/Tool_backups"
 
-BACKUP_BASE_DIR="../Tool_backups"
-
-echo "🔍 Mencari backup yang tersedia..."
-if [ ! -d "$BACKUP_BASE_DIR" ]; then
-    echo "❌ Folder backup tidak ditemukan di $BACKUP_BASE_DIR!"
+echo "=== 1. Daftar Backup ==="
+if [ ! -d "$BACKUP_ROOT" ]; then
+    echo "❌ Folder backup tidak ditemukan di $BACKUP_ROOT!"
     exit 1
 fi
 
-# Menyimpan daftar file ke dalam array (diurutkan dari yang terlama ke terbaru)
-mapfile -t BACKUPS < <(ls -1tr "$BACKUP_BASE_DIR"/Tool_backup_*.tar.gz 2>/dev/null)
+# Menyimpan daftar file ke dalam array (diurutkan dari yang terbaru ke terlama)
+mapfile -t BACKUPS < <(ls -1dt "$BACKUP_ROOT"/Tool_backup_* 2>/dev/null)
 
 if [ ${#BACKUPS[@]} -eq 0 ]; then
-    echo "❌ Tidak ada file backup yang tersedia!"
+    echo "❌ Tidak ada folder backup yang tersedia!"
     exit 1
 fi
 
-echo "📋 Daftar backup yang tersedia:"
 for i in "${!BACKUPS[@]}"; do
-    # Tampilkan hanya nama file, bukan path lengkap
     FILENAME=$(basename "${BACKUPS[$i]}")
     echo "  [$i] $FILENAME"
 done
@@ -38,25 +34,26 @@ fi
 SELECTED_BACKUP="${BACKUPS[$SELECTION]}"
 echo "Anda memilih: $(basename "$SELECTED_BACKUP")"
 
-# KONFIRMASI WAJIB (KEAMANAN)
-echo "⚠️ PERINGATAN: Rollback akan MENIMPA semua file project saat ini dengan file dari backup!"
-read -p "Apakah Anda YAKIN ingin melanjutkan? (Ketik 'YAKIN' untuk lanjut): " CONFIRM
+echo ""
+echo "=== 2. Konfirmasi Rollback ==="
+echo "⚠️ PERINGATAN: Rollback akan MENGHAPUS seluruh isi folder $PROJECT_DIR"
+echo "dan menggantinya dengan isi dari $(basename "$SELECTED_BACKUP")!"
+read -p "Ketik 'YAKIN' untuk melanjutkan: " CONFIRM
 
 if [ "$CONFIRM" != "YAKIN" ]; then
     echo "🛑 Rollback dibatalkan."
     exit 0
 fi
 
-echo "🔄 Memulai proses ekstrak backup..."
-
-# Ekstrak backup untuk menimpa file saat ini
-tar -xzf "$SELECTED_BACKUP" -C .
-
+echo ""
+echo "=== 3. Proses Restore ==="
+set +e
+rm -rf "$PROJECT_DIR"
+cp -r "$SELECTED_BACKUP" "$PROJECT_DIR"
 if [ $? -eq 0 ]; then
-    echo "✅ Restore berhasil! File project telah dikembalikan ke kondisi backup."
-    echo "💡 Catatan: File baru yang Anda buat *setelah* backup ini diambil mungkin masih tersisa di folder."
-    echo "   (Jika Anda ingin menghapus file-file baru tersebut, Anda bisa menjalankan 'git clean -fd' secara manual)"
+    echo "✅ Restore berhasil! Project $PROJECT_DIR telah dikembalikan ke kondisi backup."
 else
-    echo "❌ Error: Gagal mengekstrak backup!"
+    echo "❌ Error: Gagal me-restore backup!"
     exit 1
 fi
+set -e

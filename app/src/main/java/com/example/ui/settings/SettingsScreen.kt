@@ -23,8 +23,8 @@ fun SettingsScreen(
     onNavigateToOnboarding: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val storageManager = remember { StorageManager(context) }
-    val storageInfo = remember { storageManager.getStorageInfo() }
+    val storageManager = remember { com.example.util.StorageManagerImpl() }
+    val storageInfo = remember { storageManager.getStorageInfo(context) }
 
     Scaffold(
         topBar = {
