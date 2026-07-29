@@ -33,7 +33,8 @@ jobs:
     # --- STEP BUILD APK & AAB RELEASE ---
     - name: Build Release APK and AAB
       env:
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+            KEYSTORE_PATH: app/release.keystore
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
